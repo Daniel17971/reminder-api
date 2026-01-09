@@ -8,7 +8,7 @@ interface ReminderItem {
   title: string;
   description: string;
   date: string;
-  time: number;
+  time: string; // Format: "HH:MM" (24-hour format)
   event_type: string;
   reminder_method: string[];
   recurring?: string;

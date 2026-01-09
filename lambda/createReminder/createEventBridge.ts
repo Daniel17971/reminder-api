@@ -6,7 +6,7 @@ interface ReminderItem {
   title: string;
   description: string;
   date: string;
-  time: number;
+  time: string; // Format: "HH:MM" (24-hour format)
   event_type: string;
   reminder_method: string[];
   recurring?: string;
@@ -28,10 +28,9 @@ export async function createEventBridge(reminder: ReminderItem): Promise<void> {
   }
 
   // Parse date and time to create a cron expression
-  // date format: "YYYY-MM-DD", time: number (minutes from start of day)
+  // date format: "YYYY-MM-DD", time format: "HH:MM" (24-hour format)
   const [year, month, day] = reminder.date.split('-');
-  const hour = Math.floor(reminder.time / 60);
-  const minute = reminder.time % 60;
+  const [hour, minute] = reminder.time.split(':');
 
   // Create cron expression (minute hour day month ? year)
   // EventBridge cron format: cron(minute hour day month ? year)
