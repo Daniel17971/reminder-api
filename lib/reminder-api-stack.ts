@@ -35,11 +35,23 @@ export class ReminderApiStack extends cdk.Stack {
       },
     };
 
-    // Create Reminder Lambda
+    // Notification Handler Lambda (defined first so we can reference it in Create/Update)
+    const notificationHandlerFn = new lambda.NodejsFunction(this, 'NotificationHandlerFunction', {
+      ...lambdaDefaults,
+      entry: path.join(__dirname, '../lambda/notificationHandler/index.ts'),
+      handler: 'handler',
+    });
+
+    // Create Reminder Lambda (with additional environment variables for EventBridge)
     const createReminderFn = new lambda.NodejsFunction(this, 'CreateReminderFunction', {
       ...lambdaDefaults,
       entry: path.join(__dirname, '../lambda/createReminder/index.ts'),
       handler: 'handler',
+      environment: {
+        ...lambdaDefaults.environment,
+        NOTIFICATION_LAMBDA_ARN: notificationHandlerFn.functionArn,
+        // SCHEDULER_ROLE_ARN will be added after role creation
+      },
     });
 
     // List Reminders Lambda
@@ -49,24 +61,22 @@ export class ReminderApiStack extends cdk.Stack {
       handler: 'handler',
     });
 
-    // Update Reminder Lambda
+    // Update Reminder Lambda (with additional environment variables for EventBridge)
     const updateReminderFn = new lambda.NodejsFunction(this, 'UpdateReminderFunction', {
       ...lambdaDefaults,
       entry: path.join(__dirname, '../lambda/updateReminder/index.ts'),
       handler: 'handler',
+      environment: {
+        ...lambdaDefaults.environment,
+        NOTIFICATION_LAMBDA_ARN: notificationHandlerFn.functionArn,
+        // SCHEDULER_ROLE_ARN will be added after role creation
+      },
     });
 
     // Delete Reminder Lambda
     const deleteReminderFn = new lambda.NodejsFunction(this, 'DeleteReminderFunction', {
       ...lambdaDefaults,
       entry: path.join(__dirname, '../lambda/deleteReminder/index.ts'),
-      handler: 'handler',
-    });
-
-    // Notification Handler Lambda (triggered by EventBridge Scheduler)
-    const notificationHandlerFn = new lambda.NodejsFunction(this, 'NotificationHandlerFunction', {
-      ...lambdaDefaults,
-      entry: path.join(__dirname, '../lambda/notificationHandler/index.ts'),
       handler: 'handler',
     });
 
@@ -110,6 +120,10 @@ export class ReminderApiStack extends cdk.Stack {
     });
     createReminderFn.addToRolePolicy(passRolePolicy);
     updateReminderFn.addToRolePolicy(passRolePolicy);
+
+    // Add SCHEDULER_ROLE_ARN to createReminder and updateReminder environments
+    createReminderFn.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
+    updateReminderFn.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
 
     // REST API Gateway
     const api = new apigateway.RestApi(this, 'ReminderApi', {

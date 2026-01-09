@@ -1,25 +1,79 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
+
+interface ReminderItem {
+  userId: string;
+  reminderId: string;
+  title: string;
+  description: string;
+  date: string;
+  time: number;
+  event_type: string;
+  reminder_method: string[];
+  recurring?: string;
+  reminders: { value: number; time: string }[];
+}
+
+const dynamodb = new DynamoDBClient({});
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const userId = event.pathParameters?.userId;
+  try {
+    const userId = event.pathParameters?.userId;
 
-  // TODO: Implement list reminders logic
-  // 1. Query DynamoDB for all reminders with PK = userId
-  // 2. Optionally support pagination via query parameters
-  // 3. Return the list of reminders
+    if (!userId) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'userId is required' }),
+      };
+    }
 
-  console.log('Listing reminders for user:', userId);
+    const tableName = process.env.TABLE_NAME;
+    if (!tableName) {
+      throw new Error('TABLE_NAME environment variable not set');
+    }
 
-  return {
-    statusCode: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-    body: JSON.stringify({
-      message: 'TODO: Implement listReminders',
-      userId,
-      reminders: [],
-    }),
-  };
+    // Query DynamoDB for all reminders with this userId
+    const result = await dynamodb.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId,
+        },
+      })
+    );
+
+    const reminders: ReminderItem[] = (result.Items || []) as ReminderItem[];
+
+    console.log(`Retrieved ${reminders.length} reminders for user:`, userId);
+
+    return {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        message: 'Reminders retrieved successfully',
+        userId,
+        count: reminders.length,
+        reminders,
+      }),
+    };
+  } catch (error) {
+    console.error('Error listing reminders:', error);
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        error: 'Failed to retrieve reminders',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      }),
+    };
+  }
 };
